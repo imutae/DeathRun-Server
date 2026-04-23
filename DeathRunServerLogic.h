@@ -23,5 +23,6 @@ private:
 private:
 	std::vector<SE::Net::Session*> _sessions;
 	std::unique_ptr<RoomManager> _roomManager;
+	std::unordered_map<uint64_t, uint16_t> _sessionRoomMap; // sessionId -> roomId
 };
 

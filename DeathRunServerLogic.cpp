@@ -24,6 +24,21 @@ void DeathRunServerLogic::OnConnected(SE::Net::Session* session)
 void DeathRunServerLogic::OnDisconnected(SE::Net::Session* session)
 {
 	std::cout << "[Disconnected] Session: " << session << std::endl;
+
+	auto it = _sessionRoomMap.find(session->GetSessionId());
+	if (it != _sessionRoomMap.end())
+	{
+		uint16_t roomId = it->second;
+		auto room = _roomManager->GetRoom(roomId);
+		if (room)
+		{
+			room->QuitUser(session->GetSessionId());
+			E_LEAVE leavePkt;
+			leavePkt.sessionId = session->GetSessionId();
+			room->Broadcast(static_cast<uint16_t>(PacketId::E_LEAVE), &leavePkt, sizeof(leavePkt));
+		}
+		_sessionRoomMap.erase(it);
+	}
 	_sessions.erase(std::remove(_sessions.begin(), _sessions.end(), session), _sessions.end());
 }
 
@@ -53,12 +68,13 @@ void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, uint16_t pac
 			room = _roomManager->CreateRoom();
 			if(!room)
 			{
+				room->JoinUser(session);
 				S_JOIN sJoinPkt;
-				sJoinPkt.joined = false;
+				sJoinPkt.success = false;
 				session->Send(static_cast<uint16_t>(PacketId::S_JOIN), &sJoinPkt, sizeof(sJoinPkt));
+				_sessionRoomMap.insert({ session->GetSessionId(), room->GetRoomId() });
 				return;
 			}
-			room->JoinUser(session);
 		}
 		else
 		{
@@ -66,12 +82,12 @@ void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, uint16_t pac
 			room = _roomManager->GetRoom(pkt->roomId);
 			if (!room)
 			{
-				sJoinPkt.joined = false;
+				sJoinPkt.success = false;
 				session->Send(static_cast<uint16_t>(PacketId::S_JOIN), &sJoinPkt, sizeof(sJoinPkt));
 				return;
 			} else if(room->GetPlayerCount() >= MAX_ROOM_PLAYERS)
 			{
-				sJoinPkt.joined = false;
+				sJoinPkt.success = false;
 				session->Send(static_cast<uint16_t>(PacketId::S_JOIN), &sJoinPkt, sizeof(sJoinPkt));
 				return;
 			}
@@ -87,6 +103,7 @@ void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, uint16_t pac
 			}
 
 			session->Send(static_cast<uint16_t>(PacketId::S_JOIN), &sJoinPkt, sizeof(sJoinPkt));
+			_sessionRoomMap.insert({ session->GetSessionId(), room->GetRoomId() });
 
 			E_JOIN joinPkt;
 			joinPkt.sessionId = session->GetSessionId();

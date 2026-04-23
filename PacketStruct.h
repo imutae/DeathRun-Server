@@ -30,7 +30,7 @@ struct R_JOIN
 
 struct S_JOIN
 {
-	bool joined;    // true: 참가 성공, false: 참가 실패 (방이 가득 찼거나 존재하지 않음)
+	bool success;    // true: 참가 성공, false: 참가 실패 (방이 가득 찼거나 존재하지 않음)
     std::uint8_t playerCount;
     std::uint64_t sessionIds[MAX_ROOM_PLAYERS];
 };
