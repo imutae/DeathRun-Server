@@ -24,6 +24,7 @@ void DeathRunServerLogic::OnConnected(SE::Net::Session* session)
 void DeathRunServerLogic::OnDisconnected(SE::Net::Session* session)
 {
 	std::cout << "[Disconnected] Session: " << session << std::endl;
+	_sessions.erase(std::remove(_sessions.begin(), _sessions.end(), session), _sessions.end());
 }
 
 void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, uint16_t packetId, const char* data, int32_t len)
@@ -45,18 +46,51 @@ void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, uint16_t pac
 			return;
 
 		const R_JOIN* pkt = reinterpret_cast<const R_JOIN*>(data);
+		Room* room = nullptr;
+
 		if(pkt->roomId == INVALID_ROOM_ID)
 		{
-			Room* newRoom = _roomManager->CreateRoom();
-			newRoom->JoinUser(session);
+			room = _roomManager->CreateRoom();
+			if(!room)
+			{
+				S_JOIN sJoinPkt;
+				sJoinPkt.joined = false;
+				session->Send(static_cast<uint16_t>(PacketId::S_JOIN), &sJoinPkt, sizeof(sJoinPkt));
+				return;
+			}
+			room->JoinUser(session);
 		}
 		else
 		{
-			Room* room = _roomManager->GetRoom(pkt->roomId);
-			if (room)
+			S_JOIN sJoinPkt;
+			room = _roomManager->GetRoom(pkt->roomId);
+			if (!room)
 			{
-				room->JoinUser(session);
+				sJoinPkt.joined = false;
+				session->Send(static_cast<uint16_t>(PacketId::S_JOIN), &sJoinPkt, sizeof(sJoinPkt));
+				return;
+			} else if(room->GetPlayerCount() >= MAX_ROOM_PLAYERS)
+			{
+				sJoinPkt.joined = false;
+				session->Send(static_cast<uint16_t>(PacketId::S_JOIN), &sJoinPkt, sizeof(sJoinPkt));
+				return;
 			}
+
+			room->JoinUser(session);
+
+			
+			sJoinPkt.playerCount = room->GetPlayerCount();
+			auto sessionIds = room->GetPlayerSessionIds();
+			for (size_t i = 0; i < sessionIds.size() && i < MAX_ROOM_PLAYERS; ++i)
+			{
+				sJoinPkt.sessionIds[i] = sessionIds[i];
+			}
+
+			session->Send(static_cast<uint16_t>(PacketId::S_JOIN), &sJoinPkt, sizeof(sJoinPkt));
+
+			E_JOIN joinPkt;
+			joinPkt.sessionId = session->GetSessionId();
+			room->Broadcast(static_cast<uint16_t>(PacketId::E_JOIN), &joinPkt, sizeof(joinPkt));
 		}
 
 		break;

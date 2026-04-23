@@ -26,3 +26,13 @@ void Room::Broadcast(uint16_t packetId, const void* data, int32_t len)
 		session->Send(packetId, data, len);
 	}
 }
+
+std::vector<uint64_t> Room::GetPlayerSessionIds() const
+{
+	std::vector<uint64_t> sessionIds;
+	for (const auto& [sessionId, session] : _userMap)
+	{
+		sessionIds.push_back(sessionId);
+	}
+	return sessionIds;
+}

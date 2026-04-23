@@ -16,6 +16,11 @@ RoomManager::~RoomManager()
 
 Room* RoomManager::CreateRoom()
 {
+	if(_roomMap.size() >= 32)
+	{
+		return nullptr; // 최대 방 수 초과
+	}
+
 	Room* newRoom = new Room(_roomIdGenerator.fetch_add(1));
 	_roomMap.emplace(newRoom->GetRoomId(), newRoom);
     return newRoom;
