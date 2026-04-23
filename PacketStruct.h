@@ -12,7 +12,6 @@ struct ROOM_INFO
 {
     std::uint16_t roomId;
     std::uint8_t currentPlayers;
-    std::uint8_t isPlaying;   // 0: 대기중, 1: 게임중
 };
 
 struct CHAT
@@ -39,6 +38,7 @@ struct S_JOIN
 
 struct R_MOVE
 {
+	std::uint16_t roomId;
     float x;
     float y;
 };
@@ -58,18 +58,11 @@ struct E_JOIN
 
 struct E_LEAVE
 {
-    std::uint16_t roomId;
     std::uint64_t sessionId;
-};
-
-struct R_LEAVE
-{
-    std::uint8_t reserved;
 };
 
 struct N_LEAVE
 {
-    std::uint8_t success;   // 0: 실패, 1: 성공
     std::uint16_t roomId;
 };
 

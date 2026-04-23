@@ -1,9 +1,15 @@
 #pragma once
 #include "IServerLogic.h"
 #include <vector>
+#include <memory>
+
+class RoomManager;
 
 class DeathRunServerLogic : public SE::IServerLogic
 {
+public:
+	DeathRunServerLogic();
+
 public:
     void OnConnected(SE::Net::Session* session) override;
 
@@ -16,5 +22,6 @@ private:
 
 private:
 	std::vector<SE::Net::Session*> _sessions;
+	std::unique_ptr<RoomManager> _roomManager;
 };
 
