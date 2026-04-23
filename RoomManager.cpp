@@ -1,57 +1,48 @@
 #include "RoomManager.h"
+#include "PacketStruct.h"
 #include "Room.h"
 
-RoomManager::RoomManager()
+std::shared_ptr<Room> RoomManager::CreateRoom()
 {
-}
+    std::lock_guard<std::mutex> lock(_mutex);
 
-RoomManager::~RoomManager()
-{
-	for (auto& [roomId, room] : _roomMap)
-	{
-		delete room;
-	}
-	_roomMap.clear();
-}
+    if (_roomMap.size() >= MAX_ROOM_COUNT)
+        return nullptr;
 
-Room* RoomManager::CreateRoom()
-{
-	if(_roomMap.size() >= 32)
-	{
-		return nullptr; // 최대 방 수 초과
-	}
+    const std::uint16_t roomId = _roomIdGenerator.fetch_add(1);
 
-	Room* newRoom = new Room(_roomIdGenerator.fetch_add(1));
-	_roomMap.emplace(newRoom->GetRoomId(), newRoom);
-    return newRoom;
+    auto room = std::make_shared<Room>(roomId);
+    _roomMap.emplace(roomId, room);
+
+    return room;
 }
 
 void RoomManager::DestroyRoom(std::uint16_t roomId)
 {
-	auto it = _roomMap.find(roomId);
-	if (it != _roomMap.end())
-	{
-		delete it->second;
-		_roomMap.erase(it);
-	}
+    std::lock_guard<std::mutex> lock(_mutex);
+    _roomMap.erase(roomId);
 }
 
-Room* RoomManager::GetRoom(std::uint16_t roomId) const
+std::shared_ptr<Room> RoomManager::GetRoom(std::uint16_t roomId) const
 {
-	auto it = _roomMap.find(roomId);
-	if (it != _roomMap.end())
-	{
-		return it->second;
-	}
-	return nullptr;
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    auto it = _roomMap.find(roomId);
+    if (it == _roomMap.end())
+        return nullptr;
+
+    return it->second;
 }
 
-std::vector<Room*> RoomManager::GetAllRooms() const
+std::vector<std::shared_ptr<Room>> RoomManager::GetAllRooms() const
 {
-	std::vector<Room*> rooms;
-	for (const auto& [roomId, room] : _roomMap)
-	{
-		rooms.push_back(room);
-	}
-	return rooms;
+    std::vector<std::shared_ptr<Room>> rooms;
+
+    std::lock_guard<std::mutex> lock(_mutex);
+    rooms.reserve(_roomMap.size());
+
+    for (const auto& [roomId, room] : _roomMap)
+        rooms.push_back(room);
+
+    return rooms;
 }
