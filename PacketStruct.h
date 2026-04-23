@@ -1,15 +1,92 @@
 #pragma once
+#include <cstdint>
+
+constexpr std::uint16_t INVALID_ROOM_ID = 0;   // 0이면 새 방 생성
+constexpr std::uint8_t  MAX_ROOM_PLAYERS = 8;   // 고정
+constexpr std::uint8_t  MAX_ROOM_COUNT = 32;
+constexpr std::uint16_t MAX_CHAT_LENGTH = 256;
+
 #pragma pack(push, 1)
 
-struct ChatPacket
+struct ROOM_INFO
 {
-	char userName[32];
-	char message[256];
+    std::uint16_t roomId;
+    std::uint8_t currentPlayers;
+    std::uint8_t isPlaying;   // 0: 대기중, 1: 게임중
 };
 
-struct 
+struct CHAT
 {
+    // 로비 채팅 전용
+    std::uint64_t sessionId;
+    char message[MAX_CHAT_LENGTH];
+};
 
+struct R_JOIN
+{
+    // roomId == 0 이면 방 생성
+    // roomId != 0 이면 해당 방 참가
+    std::uint16_t roomId;
+};
+
+struct S_JOIN
+{
+    std::uint8_t success;   // 0: 실패, 1: 성공
+    std::uint16_t roomId;
+    std::uint8_t playerCount;
+    std::uint64_t sessionIds[MAX_ROOM_PLAYERS];
+};
+
+struct R_MOVE
+{
+    float x;
+    float y;
+};
+
+struct S_MOVE
+{
+    std::uint64_t sessionId;
+    float x;
+    float y;
+};
+
+struct E_JOIN
+{
+    std::uint16_t roomId;
+    std::uint64_t sessionId;
+};
+
+struct E_LEAVE
+{
+    std::uint16_t roomId;
+    std::uint64_t sessionId;
+};
+
+struct R_LEAVE
+{
+    std::uint8_t reserved;
+};
+
+struct N_LEAVE
+{
+    std::uint8_t success;   // 0: 실패, 1: 성공
+    std::uint16_t roomId;
+};
+
+struct R_ROOM_LIST
+{
+    std::uint8_t reserved;
+};
+
+struct S_ROOM_LIST
+{
+    std::uint8_t roomCount;
+    ROOM_INFO rooms[MAX_ROOM_COUNT];
+};
+
+struct E_ACCEPT
+{
+    std::uint64_t sessionId;
 };
 
 #pragma pack(pop)
