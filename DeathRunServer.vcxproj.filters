@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="DeathRunServerLogic.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="DeathRunServerLogic.h" />
+    <ClInclude Include="PacketId.h">
+      <Filter>Protocol</Filter>
+    </ClInclude>
+    <ClInclude Include="PacketStruct.h">
+      <Filter>Protocol</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Protocol">
+      <UniqueIdentifier>{eef256df-0607-4a0a-a43c-9b8007fff430}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
