@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cstdint>
 #include <mutex>
 #include <unordered_map>
@@ -12,23 +13,23 @@ namespace SE::Net
 class Room
 {
 public:
-    explicit Room(uint16_t roomId);
+    explicit Room(std::uint16_t roomId);
 
-public:
     bool JoinUser(SE::Net::Session* userSession);
-    void QuitUser(uint64_t userSessionId);
+    void QuitUser(std::uint64_t userSessionId);
 
-public:
-    void Broadcast(uint16_t packetId, const void* data, int32_t len) const;
-    void BroadcastExcept(uint64_t exceptSessionId, uint16_t packetId, const void* data, int32_t len) const;
+    void Broadcast(std::uint16_t packetId, const void* data, std::int32_t len) const;
+    void BroadcastExcept(std::uint64_t exceptSessionId, std::uint16_t packetId, const void* data, std::int32_t len) const;
 
-public:
-    uint16_t GetRoomId() const { return _roomId; }
-    uint8_t GetPlayerCount() const;
-    std::vector<uint64_t> GetPlayerSessionIds() const;
+    std::uint16_t GetRoomId() const { return _roomId; }
+    std::uint8_t GetPlayerCount() const;
+    std::vector<std::uint64_t> GetPlayerSessionIds() const;
 
 private:
-    uint16_t _roomId;
+    std::vector<SE::Net::Session*> GetSessionSnapshot(std::uint64_t exceptSessionId, bool excludeSession) const;
+
+private:
+    std::uint16_t _roomId;
     mutable std::mutex _mutex;
-    std::unordered_map<uint64_t, SE::Net::Session*> _userMap;
+    std::unordered_map<std::uint64_t, SE::Net::Session*> _userMap;
 };

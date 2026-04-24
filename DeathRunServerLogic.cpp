@@ -9,6 +9,28 @@
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <optional>
+
+namespace
+{
+    using Session = SE::Net::Session;
+
+    std::uint16_t ToPacketId(PacketId packetId)
+    {
+        return static_cast<std::uint16_t>(packetId);
+    }
+
+    template <typename Packet>
+    std::optional<Packet> ReadPacket(const char* data, std::int32_t len)
+    {
+        if (data == nullptr || len < static_cast<std::int32_t>(sizeof(Packet)))
+            return std::nullopt;
+
+        Packet packet{};
+        std::memcpy(&packet, data, sizeof(Packet));
+        return packet;
+    }
+}
 
 DeathRunServerLogic::DeathRunServerLogic()
     : _roomManager(std::make_unique<RoomManager>())
@@ -19,196 +41,209 @@ DeathRunServerLogic::~DeathRunServerLogic() = default;
 
 void DeathRunServerLogic::OnConnected(SE::Net::Session* session)
 {
+    if (session == nullptr)
+        return;
+
     std::cout << "[Connected] Session: " << session << std::endl;
 
     {
         std::lock_guard<std::mutex> lock(_stateMutex);
-        _sessions.push_back(session);
+
+        if (std::find(_sessions.begin(), _sessions.end(), session) == _sessions.end())
+            _sessions.push_back(session);
     }
 
     E_ACCEPT pkt{};
     pkt.sessionId = session->GetSessionId();
-    session->Send(static_cast<uint16_t>(PacketId::E_ACCEPT), &pkt, sizeof(pkt));
+    session->Send(ToPacketId(PacketId::E_ACCEPT), &pkt, sizeof(pkt));
 }
 
 void DeathRunServerLogic::OnDisconnected(SE::Net::Session* session)
 {
+    if (session == nullptr)
+        return;
+
     std::cout << "[Disconnected] Session: " << session << std::endl;
 
     LeaveRoomInternal(session);
-
-    std::lock_guard<std::mutex> lock(_stateMutex);
-    _sessions.erase(std::remove(_sessions.begin(), _sessions.end(), session), _sessions.end());
+    RemoveSession(session);
 }
 
-void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, uint16_t packetId, const char* data, int32_t len)
+void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, std::uint16_t packetId, const char* data, std::int32_t len)
 {
+    if (session == nullptr)
+        return;
+
     switch (static_cast<PacketId>(packetId))
     {
     case PacketId::R_CHAT:
     {
-        if (len < static_cast<int32_t>(sizeof(CHAT)))
+        auto req = ReadPacket<CHAT>(data, len);
+        if (!req)
             return;
 
-        const CHAT* req = reinterpret_cast<const CHAT*>(data);
-
-        CHAT out{};
-        out.sessionId = session->GetSessionId();
-        std::memcpy(out.message, req->message, MAX_CHAT_LENGTH);
-
-        BroadcastLobbyPacket(static_cast<uint16_t>(PacketId::S_CHAT), &out, sizeof(out));
-        break;
+        HandleChat(session, *req);
+        return;
     }
-
     case PacketId::R_JOIN:
     {
-        if (len < static_cast<int32_t>(sizeof(R_JOIN)))
+        auto req = ReadPacket<R_JOIN>(data, len);
+        if (!req)
             return;
 
-        const R_JOIN* req = reinterpret_cast<const R_JOIN*>(data);
-        const uint64_t sessionId = session->GetSessionId();
-
-        {
-            std::lock_guard<std::mutex> lock(_stateMutex);
-            auto it = _sessionRoomMap.find(sessionId);
-            if (it != _sessionRoomMap.end())
-            {
-                SendJoinResult(session, false, nullptr);
-                return;
-            }
-        }
-
-        std::shared_ptr<Room> room;
-        if (req->roomId == INVALID_ROOM_ID)
-        {
-            room = _roomManager->CreateRoom();
-            if (!room)
-            {
-                SendJoinResult(session, false, nullptr);
-                return;
-            }
-        }
-        else
-        {
-            room = _roomManager->GetRoom(req->roomId);
-            if (!room)
-            {
-                SendJoinResult(session, false, nullptr);
-                return;
-            }
-        }
-
-        if (!room->JoinUser(session))
-        {
-            SendJoinResult(session, false, nullptr);
-            return;
-        }
-
-        {
-            std::lock_guard<std::mutex> lock(_stateMutex);
-            _sessionRoomMap[sessionId] = room->GetRoomId();
-        }
-
-        SendJoinResult(session, true, room);
-
-        E_JOIN joinPkt{};
-        joinPkt.sessionId = sessionId;
-
-        room->BroadcastExcept(
-            sessionId,
-            static_cast<uint16_t>(PacketId::E_JOIN),
-            &joinPkt,
-            sizeof(joinPkt));
-
-        break;
+        HandleJoin(session, *req);
+        return;
     }
-
     case PacketId::R_MOVE:
     {
-        if (len < static_cast<int32_t>(sizeof(R_MOVE)))
+        auto req = ReadPacket<R_MOVE>(data, len);
+        if (!req)
             return;
 
-        const R_MOVE* req = reinterpret_cast<const R_MOVE*>(data);
-
-        uint16_t roomId = INVALID_ROOM_ID;
-        {
-            std::lock_guard<std::mutex> lock(_stateMutex);
-            auto it = _sessionRoomMap.find(session->GetSessionId());
-            if (it == _sessionRoomMap.end())
-                return;
-
-            roomId = it->second;
-        }
-
-        auto room = _roomManager->GetRoom(roomId);
-        if (!room)
-            return;
-
-        S_MOVE movePkt{};
-        movePkt.sessionId = session->GetSessionId();
-        movePkt.x = req->x;
-        movePkt.y = req->y;
-
-        room->Broadcast(static_cast<uint16_t>(PacketId::S_MOVE), &movePkt, sizeof(movePkt));
-        break;
+        HandleMove(session, *req);
+        return;
     }
-
     case PacketId::N_LEAVE:
     {
-        if (len < static_cast<int32_t>(sizeof(N_LEAVE)))
+        auto req = ReadPacket<N_LEAVE>(data, len);
+        if (!req)
             return;
 
         LeaveRoomInternal(session);
-        break;
+        return;
     }
-
     case PacketId::R_ROOM_LIST:
     {
-        if (len < static_cast<int32_t>(sizeof(R_ROOM_LIST)))
+        auto req = ReadPacket<R_ROOM_LIST>(data, len);
+        if (!req)
             return;
 
-        auto rooms = _roomManager->GetAllRooms();
-
-        S_ROOM_LIST pkt{};
-        const size_t roomCount = std::min(rooms.size(), static_cast<size_t>(MAX_ROOM_COUNT));
-        pkt.roomCount = static_cast<uint8_t>(roomCount);
-
-        for (size_t i = 0; i < roomCount; ++i)
-        {
-            pkt.rooms[i].roomId = rooms[i]->GetRoomId();
-            pkt.rooms[i].currentPlayers = rooms[i]->GetPlayerCount();
-        }
-
-        session->Send(static_cast<uint16_t>(PacketId::S_ROOM_LIST), &pkt, sizeof(pkt));
-        break;
+        HandleRoomList(session);
+        return;
     }
-
     default:
     {
         std::cout << "[Received Unknown Packet] Session: "
-            << session
-            << ", PacketId: "
-            << packetId
-            << std::endl;
-        break;
+                  << session
+                  << ", PacketId: "
+                  << packetId
+                  << std::endl;
+        return;
     }
     }
 }
 
-void DeathRunServerLogic::BroadcastLobbyPacket(uint16_t packetId, const void* data, int32_t len)
+void DeathRunServerLogic::HandleChat(Session* session, const CHAT& req)
 {
-    std::vector<SE::Net::Session*> targets;
+    CHAT out{};
+    out.sessionId = session->GetSessionId();
+    std::memcpy(out.message, req.message, sizeof(out.message));
+
+    BroadcastLobbyPacket(ToPacketId(PacketId::S_CHAT), &out, sizeof(out));
+}
+
+void DeathRunServerLogic::HandleJoin(Session* session, const R_JOIN& req)
+{
+    const std::uint64_t sessionId = session->GetSessionId();
+
+    if (IsSessionInRoom(sessionId))
+    {
+        SendJoinResult(session, false, nullptr);
+        return;
+    }
+
+    const bool createRoom = (req.roomId == INVALID_ROOM_ID);
+    RoomPtr room = createRoom ? _roomManager->CreateRoom() : _roomManager->GetRoom(req.roomId);
+
+    if (!room)
+    {
+        SendJoinResult(session, false, nullptr);
+        return;
+    }
+
+    if (!room->JoinUser(session))
+    {
+        if (createRoom && room->GetPlayerCount() == 0)
+            _roomManager->DestroyRoom(room->GetRoomId());
+
+        SendJoinResult(session, false, nullptr);
+        return;
+    }
+
+    if (!TryRegisterSessionRoom(sessionId, room->GetRoomId()))
+    {
+        room->QuitUser(sessionId);
+
+        if (createRoom && room->GetPlayerCount() == 0)
+            _roomManager->DestroyRoom(room->GetRoomId());
+
+        SendJoinResult(session, false, nullptr);
+        return;
+    }
+
+    SendJoinResult(session, true, room);
+
+    E_JOIN joinPkt{};
+    joinPkt.sessionId = sessionId;
+
+    room->BroadcastExcept(
+        sessionId,
+        ToPacketId(PacketId::E_JOIN),
+        &joinPkt,
+        sizeof(joinPkt));
+}
+
+void DeathRunServerLogic::HandleMove(Session* session, const R_MOVE& req)
+{
+    const std::uint64_t sessionId = session->GetSessionId();
+
+    std::uint16_t roomId = INVALID_ROOM_ID;
+    if (!TryGetSessionRoomId(sessionId, roomId))
+        return;
+
+    auto room = _roomManager->GetRoom(roomId);
+    if (!room)
+        return;
+
+    S_MOVE movePkt{};
+    movePkt.sessionId = sessionId;
+    movePkt.x = req.x;
+    movePkt.y = req.y;
+
+    room->Broadcast(ToPacketId(PacketId::S_MOVE), &movePkt, sizeof(movePkt));
+}
+
+void DeathRunServerLogic::HandleRoomList(Session* session)
+{
+    auto rooms = _roomManager->GetAllRooms();
+
+    S_ROOM_LIST pkt{};
+    const std::size_t roomCount = std::min(rooms.size(), static_cast<std::size_t>(MAX_ROOM_COUNT));
+    pkt.roomCount = static_cast<std::uint8_t>(roomCount);
+
+    for (std::size_t i = 0; i < roomCount; ++i)
+    {
+        pkt.rooms[i].roomId = rooms[i]->GetRoomId();
+        pkt.rooms[i].currentPlayers = rooms[i]->GetPlayerCount();
+    }
+
+    session->Send(ToPacketId(PacketId::S_ROOM_LIST), &pkt, sizeof(pkt));
+}
+
+void DeathRunServerLogic::BroadcastLobbyPacket(std::uint16_t packetId, const void* data, std::int32_t len)
+{
+    std::vector<Session*> targets;
 
     {
         std::lock_guard<std::mutex> lock(_stateMutex);
-        targets.reserve(_sessions.size());
 
-        for (SE::Net::Session* session : _sessions)
+        targets.reserve(_sessions.size());
+        for (Session* session : _sessions)
         {
             if (session == nullptr)
                 continue;
 
-            const uint64_t sessionId = session->GetSessionId();
+            const std::uint64_t sessionId = session->GetSessionId();
             if (_sessionRoomMap.find(sessionId) != _sessionRoomMap.end())
                 continue;
 
@@ -216,35 +251,42 @@ void DeathRunServerLogic::BroadcastLobbyPacket(uint16_t packetId, const void* da
         }
     }
 
-    for (SE::Net::Session* session : targets)
+    for (Session* session : targets)
         session->Send(packetId, data, len);
 }
 
-void DeathRunServerLogic::SendJoinResult(SE::Net::Session* session, bool success, const std::shared_ptr<Room>& room)
+void DeathRunServerLogic::SendJoinResult(Session* session, bool success, const RoomPtr& room)
 {
+    if (session == nullptr)
+        return;
+
     S_JOIN pkt{};
     pkt.success = success ? 1 : 0;
 
     if (success && room)
     {
         auto sessionIds = room->GetPlayerSessionIds();
-        const size_t count = std::min(sessionIds.size(), static_cast<size_t>(MAX_ROOM_PLAYERS));
-        pkt.playerCount = static_cast<uint8_t>(count);
+        const std::size_t count = std::min(sessionIds.size(), static_cast<std::size_t>(MAX_ROOM_PLAYERS));
+        pkt.playerCount = static_cast<std::uint8_t>(count);
 
-        for (size_t i = 0; i < count; ++i)
+        for (std::size_t i = 0; i < count; ++i)
             pkt.sessionIds[i] = sessionIds[i];
     }
 
-    session->Send(static_cast<uint16_t>(PacketId::S_JOIN), &pkt, sizeof(pkt));
+    session->Send(ToPacketId(PacketId::S_JOIN), &pkt, sizeof(pkt));
 }
 
-bool DeathRunServerLogic::LeaveRoomInternal(SE::Net::Session* session)
+bool DeathRunServerLogic::LeaveRoomInternal(Session* session)
 {
-    const uint64_t sessionId = session->GetSessionId();
+    if (session == nullptr)
+        return false;
 
-    uint16_t roomId = INVALID_ROOM_ID;
+    const std::uint64_t sessionId = session->GetSessionId();
+    std::uint16_t roomId = INVALID_ROOM_ID;
+
     {
         std::lock_guard<std::mutex> lock(_stateMutex);
+
         auto it = _sessionRoomMap.find(sessionId);
         if (it == _sessionRoomMap.end())
             return false;
@@ -261,10 +303,40 @@ bool DeathRunServerLogic::LeaveRoomInternal(SE::Net::Session* session)
 
     E_LEAVE leavePkt{};
     leavePkt.sessionId = sessionId;
-    room->Broadcast(static_cast<uint16_t>(PacketId::E_LEAVE), &leavePkt, sizeof(leavePkt));
+    room->Broadcast(ToPacketId(PacketId::E_LEAVE), &leavePkt, sizeof(leavePkt));
 
     if (room->GetPlayerCount() == 0)
         _roomManager->DestroyRoom(roomId);
 
     return true;
+}
+
+bool DeathRunServerLogic::IsSessionInRoom(std::uint64_t sessionId) const
+{
+    std::lock_guard<std::mutex> lock(_stateMutex);
+    return _sessionRoomMap.find(sessionId) != _sessionRoomMap.end();
+}
+
+bool DeathRunServerLogic::TryRegisterSessionRoom(std::uint64_t sessionId, std::uint16_t roomId)
+{
+    std::lock_guard<std::mutex> lock(_stateMutex);
+    return _sessionRoomMap.emplace(sessionId, roomId).second;
+}
+
+bool DeathRunServerLogic::TryGetSessionRoomId(std::uint64_t sessionId, std::uint16_t& roomId) const
+{
+    std::lock_guard<std::mutex> lock(_stateMutex);
+
+    auto it = _sessionRoomMap.find(sessionId);
+    if (it == _sessionRoomMap.end())
+        return false;
+
+    roomId = it->second;
+    return true;
+}
+
+void DeathRunServerLogic::RemoveSession(Session* session)
+{
+    std::lock_guard<std::mutex> lock(_stateMutex);
+    _sessions.erase(std::remove(_sessions.begin(), _sessions.end(), session), _sessions.end());
 }

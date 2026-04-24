@@ -1,5 +1,5 @@
 #pragma once
-#include <atomic>
+
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -19,14 +19,16 @@ public:
     RoomManager(RoomManager&&) = delete;
     RoomManager& operator=(RoomManager&&) = delete;
 
-public:
     std::shared_ptr<Room> CreateRoom();
     void DestroyRoom(std::uint16_t roomId);
     std::shared_ptr<Room> GetRoom(std::uint16_t roomId) const;
     std::vector<std::shared_ptr<Room>> GetAllRooms() const;
 
 private:
+    std::uint16_t GenerateRoomIdLocked();
+
+private:
     mutable std::mutex _mutex;
     std::unordered_map<std::uint16_t, std::shared_ptr<Room>> _roomMap;
-    std::atomic<std::uint16_t> _roomIdGenerator{ 1 };
+    std::uint16_t _nextRoomId{ 1 };
 };
