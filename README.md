@@ -33,7 +33,7 @@
 | 방 이탈 처리 | 구현 | `N_LEAVE` 또는 disconnect 시 룸에서 세션 제거 |
 | 룸 생명주기 관리 | 구현 | 빈 방은 `RoomManager`에서 제거 |
 | 패킷 길이 검증 | 구현 | 고정 크기 패킷에 대해 `len == sizeof(Packet)` 기준으로 검증 |
-| 로그 정책 | 보강 필요 | 현재 `std::cout` 기반 출력, 추후 로그 helper 또는 logger 분리 권장 |
+| 로그 정책 | 보강 예정 | 현재 테스트 확인을 위해 `std::cout` 기반 로그 사용 |
 
 ## 서버 실행 흐름
 
@@ -109,17 +109,21 @@
 
 ```text
 DeathRun-Server/
-├─ Main.cpp
+├─ .editorconfig
+├─ .gitignore
+├─ DeathRunServer.vcxproj
+├─ DeathRunServer.vcxproj.filters
 ├─ DeathRunServerLogic.h
 ├─ DeathRunServerLogic.cpp
+├─ LICENSE
+├─ Main.cpp
+├─ PacketId.h
+├─ PacketStruct.h
+├─ README.md
 ├─ Room.h
 ├─ Room.cpp
 ├─ RoomManager.h
-├─ RoomManager.cpp
-├─ PacketId.h
-├─ PacketStruct.h
-├─ DeathRunServer.vcxproj
-└─ README.md
+└─ RoomManager.cpp
 ```
 
 ## 빌드 및 실행 환경
@@ -237,9 +241,7 @@ HandleRoomList()
 - `Session::Send()` 실패 처리 정책 정리
 - 로그 helper 또는 logger 분리
 - 서버 IP/port 설정 분리
-- Visual Studio 프로젝트 설정 정리
-  - 로컬 절대 include path 제거
-  - `Debug` / `Release` 설정 일관화
+- `ServerEngine.IOCP` 안정화 후 `.lib` 및 public header 참조 구조로 전환
 - 방 생성, 참가, 이탈, 이동 동기화 테스트 시나리오 정리
 - 클라이언트와 서버 프로토콜 문서 동기화
 
