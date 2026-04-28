@@ -32,7 +32,7 @@
 | 위치 동기화 | 구현 | `R_MOVE` 수신 시 같은 방 세션들에게 `S_MOVE` 전파 |
 | 방 이탈 처리 | 구현 | `N_LEAVE` 또는 disconnect 시 룸에서 세션 제거 |
 | 룸 생명주기 관리 | 구현 | 빈 방은 `RoomManager`에서 제거 |
-| 패킷 길이 검증 | 보강 필요 | 현재 최소 크기 검증 중심, 고정 크기 패킷은 정확한 크기 검증 권장 |
+| 패킷 길이 검증 | 구현 | 고정 크기 패킷에 대해 `len == sizeof(Packet)` 기준으로 검증 |
 | 로그 정책 | 보강 필요 | 현재 `std::cout` 기반 출력, 추후 로그 helper 또는 logger 분리 권장 |
 
 ## 서버 실행 흐름
@@ -233,7 +233,6 @@ HandleRoomList()
 
 ## 현재 보강 예정 사항
 
-- 고정 크기 패킷에 대해 `len == sizeof(Packet)` 기준 검증 적용
 - malformed packet 로그 추가
 - `Session::Send()` 실패 처리 정책 정리
 - 로그 helper 또는 logger 분리

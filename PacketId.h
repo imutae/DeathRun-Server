@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-enum class PacketId : uint16_t
+enum class PacketId : std::uint16_t
 {
     R_CHAT = 1,      // 로비 채팅 전송
     S_CHAT = 2,      // 로비 채팅 수신
@@ -15,7 +15,7 @@ enum class PacketId : uint16_t
     E_JOIN = 7,      // 같은 방의 다른 플레이어가 들어옴
     E_LEAVE = 8,     // 같은 방의 다른 플레이어가 나감
 
-	N_LEAVE = 9,     // 클라이언트가 방에서 나감을 알림 (방 나가기 통보)
+	N_LEAVE = 9,     // 클라이언트 -> 서버 방 이탈 요청
 
     R_ROOM_LIST = 10, // 방 목록 요청
     S_ROOM_LIST = 11, // 방 목록 응답

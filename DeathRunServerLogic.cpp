@@ -15,8 +15,6 @@
 
 namespace
 {
-    using Session = SE::Net::Session;
-
     std::uint16_t ToPacketId(PacketId packetId)
     {
         return static_cast<std::uint16_t>(packetId);
@@ -41,12 +39,12 @@ DeathRunServerLogic::DeathRunServerLogic()
 
 DeathRunServerLogic::~DeathRunServerLogic() = default;
 
-void DeathRunServerLogic::OnConnected(SE::Net::Session* session)
+void DeathRunServerLogic::OnConnected(Session* session)
 {
     if (session == nullptr)
         return;
 
-    std::cout << "[Connected] Session: " << session << std::endl;
+	std::cout << "[Connected] Session: " << session->GetSessionId() << "\n";
 
     {
         std::lock_guard<std::mutex> lock(_stateMutex);
@@ -65,13 +63,13 @@ void DeathRunServerLogic::OnDisconnected(SE::Net::Session* session)
     if (session == nullptr)
         return;
 
-    std::cout << "[Disconnected] Session: " << session << std::endl;
+    std::cout << "[Disconnected] Session: " << session->GetSessionId() << "\n";
 
     LeaveRoomInternal(session);
     RemoveSession(session);
 }
 
-void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, std::uint16_t packetId, const char* data, std::int32_t len)
+void DeathRunServerLogic::DispatchPacket(Session* session, std::uint16_t packetId, const char* data, std::int32_t len)
 {
     if (session == nullptr)
         return;
@@ -167,7 +165,7 @@ void DeathRunServerLogic::HandleJoin(Session* session, const R_JOIN& req)
     }
 
     const bool createRoom = (req.roomId == INVALID_ROOM_ID);
-    RoomPtr room = createRoom ? _roomManager->CreateRoom() : _roomManager->GetRoom(req.roomId);
+	std::shared_ptr<Room> room = createRoom ? _roomManager->CreateRoom() : _roomManager->GetRoom(req.roomId);
 
     if (!room)
     {
@@ -269,7 +267,7 @@ void DeathRunServerLogic::BroadcastLobbyPacket(std::uint16_t packetId, const voi
         session->Send(packetId, data, len);
 }
 
-void DeathRunServerLogic::SendJoinResult(Session* session, bool success, const RoomPtr& room)
+void DeathRunServerLogic::SendJoinResult(Session* session, bool success, const std::shared_ptr<Room>& room)
 {
     if (session == nullptr)
         return;

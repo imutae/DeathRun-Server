@@ -14,6 +14,8 @@ struct CHAT;
 struct R_JOIN;
 struct R_MOVE;
 
+using Session = SE::Net::Session;
+
 class DeathRunServerLogic : public SE::IServerLogic
 {
 public:
@@ -30,16 +32,13 @@ public:
     void DispatchPacket(SE::Net::Session* session, std::uint16_t packetId, const char* data, std::int32_t len) override;
 
 private:
-    using Session = SE::Net::Session;
-    using RoomPtr = std::shared_ptr<Room>;
-
     void HandleChat(Session* session, const CHAT& req);
     void HandleJoin(Session* session, const R_JOIN& req);
     void HandleMove(Session* session, const R_MOVE& req);
     void HandleRoomList(Session* session);
 
     void BroadcastLobbyPacket(std::uint16_t packetId, const void* data, std::int32_t len);
-    void SendJoinResult(Session* session, bool success, const RoomPtr& room);
+    void SendJoinResult(Session* session, bool success, const std::shared_ptr<Room>& room);
     bool LeaveRoomInternal(Session* session);
 
     bool IsSessionInRoom(std::uint64_t sessionId) const;
