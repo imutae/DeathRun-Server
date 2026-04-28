@@ -1,5 +1,7 @@
 #include "DeathRunServerLogic.h"
 
+#define NOMINMAX
+
 #include "PacketId.h"
 #include "PacketStruct.h"
 #include "Room.h"
