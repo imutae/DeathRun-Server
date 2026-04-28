@@ -76,7 +76,11 @@ void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, std::uint16_
     if (session == nullptr)
         return;
 
-    switch (static_cast<PacketId>(packetId))
+	PacketId pid = static_cast<PacketId>(packetId);
+
+    std::cout << "[Received Packet] Session: " << session->GetSessionId() << ", PacketId: " << static_cast<std::uint16_t>(pid) << std::endl;
+
+    switch (pid)
     {
     case PacketId::R_CHAT:
     {
