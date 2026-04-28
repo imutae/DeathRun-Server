@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include "ServerEngine.h"
 #include "DeathRunServerLogic.h"
 
@@ -15,7 +15,7 @@ int main()
     if (!engine.Initialize(&logic, "127.0.0.1", 7777))
     {
         std::cout << "Server Initialize Failed\n";
-        return 0;
+        return 1;
     }
 
     std::cout << "Server Start\n";

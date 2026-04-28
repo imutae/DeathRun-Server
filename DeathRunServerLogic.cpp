@@ -25,7 +25,7 @@ namespace
     template <typename Packet>
     std::optional<Packet> ReadPacket(const char* data, std::int32_t len)
     {
-        if (data == nullptr || len < static_cast<std::int32_t>(sizeof(Packet)))
+        if (data == nullptr || len != static_cast<std::int32_t>(sizeof(Packet)))
             return std::nullopt;
 
         Packet packet{};
@@ -78,7 +78,13 @@ void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, std::uint16_
 
 	PacketId pid = static_cast<PacketId>(packetId);
 
-    std::cout << "[Received Packet] Session: " << session->GetSessionId() << ", PacketId: " << static_cast<std::uint16_t>(pid) << std::endl;
+	std::cout << "[Received Packet] SessionId: "
+		<< session->GetSessionId()
+		<< ", PacketId: "
+		<< packetId
+		<< ", BodyLen: "
+		<< len
+		<< '\n';
 
     switch (pid)
     {
@@ -129,11 +135,13 @@ void DeathRunServerLogic::DispatchPacket(SE::Net::Session* session, std::uint16_
     }
     default:
     {
-        std::cout << "[Received Unknown Packet] Session: "
-                  << session
-                  << ", PacketId: "
-                  << packetId
-                  << std::endl;
+		std::cout << "[Unknown Packet] SessionId: "
+			<< session->GetSessionId()
+			<< ", PacketId: "
+			<< packetId
+			<< ", BodyLen: "
+			<< len
+			<< '\n';
         return;
     }
     }
